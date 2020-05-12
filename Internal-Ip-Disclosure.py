@@ -11,7 +11,7 @@ from colorama import Fore, Style, Back
 
 # Input file
 
-hosts_file = "C:\\Users\\k.rajabzadeh\\Desktop\\python\\IIS-Internal-IP-Finder\\my-hosts.txt"
+hosts_file = "path to example-hosts.txt"
 hosts_list = open(hosts_file, 'r').readlines()
 
 
