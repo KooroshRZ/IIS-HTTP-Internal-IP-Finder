@@ -1,11 +1,10 @@
 # input file for python script
 # format og the file is like this
-# <prorocol://<domain or IP address>:<port>
+# <prorocol>://<domain or IP address>:<port>
 
-
-http://domain.con:80
+# example
+http://domain.com:80
 https://a.domain.com:443
 https://a.b.ir:5050
 
-# comment domain
-# comment domain
+# the script will ignore the comments starting with #
