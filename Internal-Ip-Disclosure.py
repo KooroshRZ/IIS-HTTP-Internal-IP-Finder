@@ -14,7 +14,6 @@ from time import sleep
 hosts_file = "path to example_hosts.txt"
 hosts_list = open(hosts_file, 'r').readlines()
 
-
 protocol = ''
 server_name = ''
 server_ip = ''
@@ -50,12 +49,13 @@ http_methods = [
     'GET'
 ]
 
-
 def enumerate_internal_IP_addresses():
 
     global found
 
     for host in hosts_list:
+
+        found = False
         
         if host == "\n" or host == '' or host[0] == "#":
             continue
@@ -100,10 +100,9 @@ def enumerate_internal_IP_addresses():
                     sock_http = socket.create_connection((server_name, server_port))
                     sock_http.settimeout(10)
                 except:
-                    print(Back.LIGHTRED_EX)
+                    print(Back.LIGHTRED_EX + Fore.BLACK)
                     print("    [-] Error on connecting to host {}:{}".format(server_name, server_port))
                     print(Style.RESET_ALL)
-                    sock_http.close()
                     break
                 
                 print(Fore.LIGHTCYAN_EX + "    [*]" + Style.RESET_ALL +  " Trying request {}".format(request.encode()) )
@@ -111,8 +110,14 @@ def enumerate_internal_IP_addresses():
                 sock_http.sendall(request.encode())
 
                 response = ''
-                recv = sock_http.recv(1024).decode()
-                response += recv
+
+                try:
+                    recv = sock_http.recv(1024).decode("utf-8", errors='ignore')
+                    response += recv
+                except:
+                    print(Fore.BLACK + Back.LIGHTRED_EX + "    [-] Something happened on Receiving data" + Style.RESET_ALL)
+                    sock_http.close()
+                    continue
 
                 if response != '' and response.find("Location") > -1 and response.find("http") > -1:
                     
@@ -146,12 +151,11 @@ def enumerate_internal_IP_addresses():
                 sock_http.close()
 
             if not found:
-                print(Fore.LIGHTRED_EX + "\n    [-] No Internal IP address found for {}:{} with all possible methods and urls\n".format(server_name, server_port) + Style.RESET_ALL)                
+                print(Fore.LIGHTRED_EX + "\n    [-] No Internal IP address found for {}:{}\n".format(server_name, server_port) + Style.RESET_ALL)                
 
             print("\n**************************************************************************************\n")
 
-                    
-
+     
         elif protocol == 'https':
             
             context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
@@ -167,11 +171,9 @@ def enumerate_internal_IP_addresses():
                     ssock = context.wrap_socket(sock_https, server_hostname=server_name)
                     ssock.settimeout(10)
                 except:
-                    print(Back.LIGHTRED_EX)
+                    print(Back.LIGHTRED_EX + Fore.BLACK)
                     print("    [-] Error on connecting to host {}:{}".format(server_name, server_port))
                     print(Style.RESET_ALL)
-                    sock_https.close()
-                    ssock.close()
                     break
 
                 print(Fore.LIGHTCYAN_EX + "    [*]" + Style.RESET_ALL +  " Trying request {}".format(request.encode()) )
@@ -180,7 +182,7 @@ def enumerate_internal_IP_addresses():
                 ssock.sendall(request.encode())
                     
                 response = ''
-                recv = ssock.recv(1024).decode()
+                recv = ssock.recv(1024).decode("utf-8", errors='ignore')
                 response += recv 
                 
                 if response != '' and response.find("Location") > -1 and response.find("http") > -1:
@@ -216,10 +218,10 @@ def enumerate_internal_IP_addresses():
                 ssock.close()
 
             if not found:
-                print(Fore.LIGHTRED_EX + "\n    [-] No Internal IP address found for {}:{} with all possible methods and urls\n".format(server_name, server_port) + Style.RESET_ALL)                
+                print(Fore.LIGHTRED_EX + "\n    [-] No Internal IP address found for {}:{}\n".format(server_name, server_port) + Style.RESET_ALL)                
 
             print("\n**************************************************************************************\n")
 
-            
+
 if __name__ == "__main__":
     enumerate_internal_IP_addresses()
