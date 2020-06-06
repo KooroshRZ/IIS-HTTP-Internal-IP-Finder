@@ -5,6 +5,7 @@
 # example
 http://domain.com:80
 https://a.domain.com:443
-https://a.b.ir:5050
+https://192.168.1.1:5050
+
 
 # the script will ignore the comments starting with #
